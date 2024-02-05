@@ -1250,7 +1250,7 @@ class Stake_Simulate:
         os.chdir(self.adb_path)
 
         self.window = tk.Tk()
-        self.window.geometry('668x650+420+350')  # 視窗大小
+        self.window.geometry('668x650+420+250')  # 視窗大小
         # self.window.resizable(0, 0)
         self.window.title('模擬下單-實際下單')  # 視窗名稱
 
