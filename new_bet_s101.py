@@ -15,7 +15,6 @@ import asyncio
 
 class Stake_Simulate:
 
-    """ """
     """ ------------------------------------------ 表格 -------------------------------------------------------------"""
     # 新增任務
     def add_task(self, *args):
@@ -88,7 +87,7 @@ class Stake_Simulate:
 
             da[self.count_data]['Amount'] = amount
             da[self.count_data]['Chips'] = chips
-            da[self.count_data]['S_Amount'] = amount
+            da[self.count_data]['Start_Amount'] = amount
             da[self.count_data]['Emulator'] = emulator
 
             da[self.count_data]['Bet_Mode'] = emulator
@@ -120,26 +119,21 @@ class Stake_Simulate:
             # 新增一筆交易時間，key=self.count_data
             self.pre_time_dict[self.count_data] = datetime.now()
 
-        # 存入db
+        # 存入db之欄位
         column_name = "Amount, Strategy, Up_Profit, Up_Front, Up_Later, Emulator, CreateTime, Status"
         cursor, conn = self.sql_server.connect_mssql()
 
         # 抓模擬器金額
         try:
+            # 所有模擬器列表
             e_list = adb.device_list()
+            # 要抓取的模擬器編號
             em = int(emulator) - 1
 
-            eea = self.balance(emulator_port=e_list[em].serial)
-
-            c = 100
-            if '.' in eea:
-                c = 1
-
-            ea = float(eea) / c
-            amount = round(ea, 2)
+            amount = self.balance(emulator_port=e_list[em].serial)
 
             da[self.count_data]['Amount'] = float(amount)
-            da[self.count_data]['S_Amount'] = float(amount)
+            da[self.count_data]['Start_Amount'] = float(amount)
             self.start_amount.delete(0, 'end')
             self.start_amount.insert(0, str(amount))
 
@@ -149,6 +143,7 @@ class Stake_Simulate:
             # 金額有誤時，改使用tk上之金額
             amount = float(self.start_amount.get())
             print("****************************************** 存入金額有誤 ******************************************")
+
         if '歷史筆數' in bettype:
             bet_type = f"{bettype + up_check}--{hs}--{bc}--{bt}--{x2}"
         else:
@@ -163,7 +158,11 @@ class Stake_Simulate:
             start_datetime,
             0
         )]
+
+        # 存入db
         self.sql_server.insert_data_to_sql(data, 'Start_Amount', column_name, cursor, conn)
+
+        # 關閉連接
         cursor.close()
         conn.close()
 
@@ -250,19 +249,15 @@ class Stake_Simulate:
         column_name = "Amount, Strategy, Up_Profit, Up_Front, Up_Later, Emulator, CreateTime, Status"
         cursor, conn = self.sql_server.connect_mssql()
         try:
+            # 所有模擬器列表
             e_list = adb.device_list()
+            # 要抓取的模擬器編號
             em = int(emulator) - 1
-            eea = self.balance(emulator_port=e_list[em].serial)
 
-            c = 100
-            if '.' in eea:
-                c = 1
-
-            ea = float(eea) / c
-            amount = round(ea, 2)
+            amount = self.balance(emulator_port=e_list[em].serial)
 
             self.data[keylist[0]]['Amount'] = float(amount)
-            self.data[keylist[0]]['S_Amount'] = float(amount)
+            self.data[keylist[0]]['Start_Amount'] = float(amount)
             self.start_amount.delete(0, 'end')
             self.start_amount.insert(0, str(amount))
         except:
@@ -284,12 +279,14 @@ class Stake_Simulate:
             1
         )]
         self.sql_server.insert_data_to_sql(data, 'Start_Amount', column_name, cursor, conn)
+
+        # 關閉連接
         cursor.close()
         conn.close()
 
     # 表格更新
     def update_table(self, table, data, data1):
-        # 获取表格的model对象
+        # 獲取表格的model對象
         model = table.model
         new_data = {k: {k1: v1 for k1, v1 in v.items() if
                         k1 not in ['Chips', 'Start_Date', 'no_award', 'Stop_time', 'Uninterrupted']} for k, v in
@@ -299,7 +296,7 @@ class Stake_Simulate:
         model.deleteRows()
         model.importDict(new_data)
 
-        # 使用字典推导式提取所有'Bet_Type'键对应的值
+        # 使用字典推導式提取所有'Bet_Type'鍵對應的值
         keyslist = list(data1.keys())
         cellw = []
         for j, k in enumerate(keyslist):
@@ -308,6 +305,8 @@ class Stake_Simulate:
             for aa in a:
                 if len(str(aa)) > b:
                     b = len(str(aa))
+
+            # 欄位寬度
             if j == 0:
                 cellw.append(160 + (b - 18) * 10)
             elif j == 1:
@@ -331,23 +330,6 @@ class Stake_Simulate:
             i += 1
         table.redrawTable()
 
-    """ ------------------------------------------ 網頁相關 -------------------------------------------------------- """
-
-    # Top排名
-    def number_rank(self, bcg=5):
-
-        url = 'http://61.219.15.81:5007/api/top'
-
-        params = {
-            'top5': bcg
-        }
-
-        respones = requests.get(url, params=params)
-
-        respones_data = respones.json()
-
-        return respones_data
-
     """ ------------------------------------------ 資料庫相關 ------------------------------------------------------ """
 
     # 所有已開的號碼資訊
@@ -361,8 +343,7 @@ class Stake_Simulate:
                     FROM Roulette
                     WHERE Status = 0 AND Result BETWEEN 0 AND 36 )
                 SELECT {top_count} *
-                    FROM CET
-                    --WHERE [Row] <= 304873
+                    FROM CET                    
                     ORDER BY CreateTime DESC, [Row] DESC  
             """
 
@@ -371,13 +352,13 @@ class Stake_Simulate:
         cursor.execute(sql)
         history_list = cursor.fetchall()
 
-        # 关闭连接
+        # 關閉連接
         cursor.close()
         conn.close()
 
         return history_list
 
-    # 每個數字出現次數，history_list=Row, ID, Result, CreateTime、hs=歷史數、bc=下單組數
+    # 每個數字出現次數，history_list=Row, ID, Result, CreateTime、hs=歷史數
     def calculate_history_rank(self, history_list, hs):
 
         number_counts = {}
@@ -400,10 +381,10 @@ class Stake_Simulate:
 
         return number_counts
 
-    #
-    def calculate_top_rank(self, numbers):
-        # 篩選出只剩所有號碼列表
-        numbers = [a[2] for a in numbers[::-1]]
+    # 每個數字後面數字出現之次數
+    def calculate_top_rank(self, data):
+        # 篩選出只剩號碼之列表
+        numbers = [a[2] for a in data[::-1]]
 
         # 計算起始值
         top_dict = {}
@@ -424,6 +405,7 @@ class Stake_Simulate:
 
             i += 1
 
+        # 每個value重新排序
         top_dict = sorted(top_dict[numbers[-1]].items(), key=lambda x: -x[1])
 
         return top_dict
@@ -435,13 +417,10 @@ class Stake_Simulate:
         # 開始判斷模擬器網頁是否正常
         self.threadbutton('device_screenshot')
 
-        si = 0
         while 1:
 
             # 所有data key值
             keys = list(self.data.keys())
-            # 所有data values
-            data_value = list(self.data.values())
 
             # ===  抓最新單筆開單資訊(Row, ID, Result, CreateTime, Status
             data = self.history_number('1')[0]
@@ -463,18 +442,19 @@ class Stake_Simulate:
 
             """ ======================================= 執行所有策略 ======================================= """
             #
-            data = asyncio.run(self.bet_main(open_number, all_history))
+            asyncio.run(self.bet_main(open_number, all_history))
 
-            # ====================================================================================================================================
             # 所有要下單的key值
             bet_key = list(self.all_bets.keys())
-            print(22222, self.all_bets)
+
+            # 按模擬器下單
             for b in bet_key:
-                # 按模擬器下單
                 self.threadbutton('bet_chips', (self.all_bets[b], b,))
+
             print("停止下單!!!!!!!!")
             time.sleep(5)
-            # 要所有下單資訊歸零
+
+            # 所有下單資訊歸零
             self.all_bets = {}
 
             e_list = adb.device_list()
@@ -485,29 +465,22 @@ class Stake_Simulate:
             while k < len(keys):
                 if values[k] == 1:
                     em = keys[k]
-                    eea = self.balance(emulator_port=e_list[em].serial)
-
-                    c = 100
-                    if '.' in eea:
-                        c = 1
+                    amount = self.balance(emulator_port=e_list[em].serial)
                     try:
-                        ea = float(eea) / c
-                        amount_dict = round(ea, 2)
 
-                        oldamount = self.data[keys[k] + 1]['S_Amount']
+                        oldamount = self.data[keys[k] + 1]['Start_Amount']
 
-                        if amount_dict / float(oldamount) >= 1.1:
+                        if amount / float(oldamount) >= 1.1:
                             self.data[keys[k] + 1]['Emulator'] = ''
 
-                        self.data[keys[k] + 1]['Amount'] = amount_dict
-
+                        self.data[keys[k] + 1]['Amount'] = amount
 
                     except:
-                        amount_dict = '出錯!!!!'
+                        amount = '出錯!!!!'
 
                     self.LineNotify(f'\n'                                                                     
                                     f'模擬器:{em + 1}\n'
-                                    f'金額：{amount_dict}')
+                                    f'金額：{amount}')
 
                     k += 1
 
@@ -515,40 +488,6 @@ class Stake_Simulate:
             self.update_table(self.table, self.data, self.data1)
             # 通知資訊歸零
             self.notify_info = {}
-
-            continue
-            # ======================================= 所有策略執行完後更新表格
-            time.sleep(5)  # 避免還在下單，所以暫緩一下
-
-            k = list(self.data.keys())[0]
-            # 找出各模擬器現有金額
-            amount_dict = {}
-            eea = self.balance(emulator_port=emu.serial)
-            if eea == '':
-                eea = str(self.data[list(self.data.keys())[0]]['Amount'])
-            c = 100
-            if '.' in eea:
-                c = 1
-
-            ea = float(eea) / c
-
-            amount_dict[k] = round(ea, 2)
-            print(
-                f"最新金額資訊:{amount_dict[k]}--{self.data[k]['Amount']}--{float(amount_dict[k]) / self.data[k]['Amount']}")
-            if self.data[k]['Bet_Mode'] != '' and amount_dict[k] > 0:
-                if 0.9 < float(amount_dict[k]) / self.data[k]['Amount'] < 1.1:
-                    self.data[k]['Amount'] = amount_dict[k]
-
-            """ * * * * * * * * * * * * * * * * * * * * * * 執行更新策略 * * * * * * * * * * * * * * * * * * * * * * """
-            if si % 8 == 0:
-                self.threadbutton('all_rank')
-                print("更新前三!!")
-
-                si = 0
-
-            time.sleep(1)
-
-            si += 1
 
     #
     async def bet_main(self, open_number, all_history):
@@ -1182,8 +1121,14 @@ class Stake_Simulate:
         except:
             res = '0'
 
-        # print(99999999, res)
-        return res
+        decimal = 100
+        if '.' in res:
+            decimal = 1
+
+        ea = float(res) / decimal
+        amount = round(ea, 2)
+
+        return amount
 
     """ ------------------------------------------------------------------------------------------------------------ """
 
